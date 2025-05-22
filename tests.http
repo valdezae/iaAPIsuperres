@@ -1,0 +1,11 @@
+### Test superscale endpoint
+# @timeout 999999
+POST http://127.0.0.1:5000/superscale
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="image"; filename="test.png"
+Content-Type: image/png
+
+< ./test.png
+--boundary--
