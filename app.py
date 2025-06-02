@@ -5,16 +5,15 @@ import io
 import base64
 from PIL import Image
 from call_model import superscale_image
-from resnet import use_model
+from classify_image import classify_image_from_pil
 
 import torch
-import tempfile
 import os
 
 app = Flask(__name__)
 
 # Path to your ResNet model weights
-RESNET_WEIGHTS_PATH = 'resnet/model_weigths.pth'  # <-- update as needed
+RESNET_WEIGHTS_PATH = 'resnet/normalsizemias.pth'  # <-- update as needed
 
 
 @app.route('/')
@@ -34,22 +33,18 @@ def superscale():
 
     sr_image = superscale_image(image)
 
-    # Save the processed image to a temporary file for ResNet input
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-        sr_image.save(tmp, 'PNG')
-        tmp_path = tmp.name
-
     try:
-        # Load ResNet model
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        model = use_model.load_model(RESNET_WEIGHTS_PATH, device=device)
-        # Preprocess the image for ResNet
-        image_tensor = use_model.preprocess_image(tmp_path)
-        # Predict
-        class_idx, class_name = use_model.predict(model, image_tensor, device)
-    finally:
-        # Clean up temp file
-        os.remove(tmp_path)
+        # Set device for model
+        device = torch.device('cpu')
+        
+        # Classify the image directly using the PIL image object
+        predicted_class, confidence = classify_image_from_pil(
+            model_path=RESNET_WEIGHTS_PATH,
+            pil_image=image,
+            device=device
+        )
+    except Exception as e:
+        return jsonify({'error': f'Classification error: {str(e)}'}), 500
 
     # Convert the super resolution image to base64 for JSON response
     img_buffer = io.BytesIO()
@@ -58,7 +53,8 @@ def superscale():
     img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
 
     return jsonify({
-        'predicted_class_name': class_name,
+        'predicted_class_name': predicted_class,
+        'confidence': float(confidence),
         'super_resolution_image': img_base64,
         'image_format': 'png'
     })
